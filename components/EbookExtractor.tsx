@@ -48,10 +48,11 @@ export default function EbookExtractor({ onTextExtracted, onCoverExtracted, onMe
       try {
         const metadata = await pdf.getMetadata();
         if (metadata && metadata.info) {
-          const title = metadata.info.Title;
-          const author = metadata.info.Author;
+          const info = metadata.info as any;
+          const title = info.Title;
+          const author = info.Author;
           let year;
-          const creationDate = metadata.info.CreationDate;
+          const creationDate = info.CreationDate;
           if (creationDate && creationDate.startsWith('D:')) {
             year = parseInt(creationDate.substring(2, 6));
           }
