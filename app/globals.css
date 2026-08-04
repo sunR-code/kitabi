@@ -26,6 +26,14 @@
   transition: transform 0.3s ease;
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+    position: static;
+  }
+}
+
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -54,6 +62,13 @@
   margin-left: 260px;
   min-height: 100vh;
   background-color: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    min-height: auto;
+  }
 }
 
 /* Card */

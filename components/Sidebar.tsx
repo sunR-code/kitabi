@@ -40,8 +40,8 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4">
-        <p className="px-6 text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-2">Menu</p>
+      <nav className="flex-1 py-4 md:py-4 flex flex-row md:flex-col overflow-x-auto md:overflow-visible">
+        <p className="hidden md:block px-6 text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-2">Menu</p>
         {navItems.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/' && pathname.startsWith(item.href));
@@ -49,10 +49,10 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`sidebar-link ${isActive ? 'active' : ''}`}
+              className={`sidebar-link whitespace-nowrap ${isActive ? 'active' : ''}`}
             >
-              <item.icon size={20} />
-              {item.label}
+              <item.icon size={20} className="shrink-0" />
+              <span className="md:inline">{item.label}</span>
             </Link>
           );
         })}

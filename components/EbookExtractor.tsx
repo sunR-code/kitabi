@@ -5,9 +5,11 @@ import { HiOutlineArrowUpTray, HiOutlineDocumentText, HiOutlineXMark } from 'rea
 
 interface EbookExtractorProps {
   onTextExtracted: (text: string) => void;
+  onCoverExtracted?: (base64Image: string) => void;
+  onMetadataExtracted?: (metadata: { title?: string, author?: string, year?: number }) => void;
 }
 
-export default function EbookExtractor({ onTextExtracted }: EbookExtractorProps) {
+export default function EbookExtractor({ onTextExtracted, onCoverExtracted, onMetadataExtracted }: EbookExtractorProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -16,12 +18,50 @@ export default function EbookExtractor({ onTextExtracted }: EbookExtractorProps)
 
   const extractPdfText = async (file: File): Promise<string> => {
     const pdfjsLib = await import('pdfjs-dist');
-    // Use the bundled worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    // Use the bundled worker from unpkg
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
     
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
+    // Extract first page as cover image if requested
+    if (onCoverExtracted) {
+      try {
+        const firstPage = await pdf.getPage(1);
+        const viewport = firstPage.getViewport({ scale: 1.0 });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await firstPage.render({ canvasContext: context, viewport: viewport }).promise;
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          onCoverExtracted(dataUrl);
+        }
+      } catch (err) {
+        console.error('Gagal mengekstrak cover dari PDF', err);
+      }
+    }
+
+    // Extract metadata
+    if (onMetadataExtracted) {
+      try {
+        const metadata = await pdf.getMetadata();
+        if (metadata && metadata.info) {
+          const title = metadata.info.Title;
+          const author = metadata.info.Author;
+          let year;
+          const creationDate = metadata.info.CreationDate;
+          if (creationDate && creationDate.startsWith('D:')) {
+            year = parseInt(creationDate.substring(2, 6));
+          }
+          onMetadataExtracted({ title, author, year });
+        }
+      } catch (err) {
+        console.error('Gagal mengekstrak metadata', err);
+      }
+    }
+
     let fullText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);

@@ -9,7 +9,7 @@ export interface Book {
   content: string;
   rating: number;
   tags: string[];
-  category: string;
+  categories: string[];
   isPremium: boolean;
   estimatedReadTime: number;
   status: 'draft' | 'published';

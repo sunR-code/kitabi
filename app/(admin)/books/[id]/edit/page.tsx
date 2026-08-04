@@ -5,7 +5,7 @@ import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineSparkles } from 'react-icons/hi2';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineSparkles, HiOutlineXMark } from 'react-icons/hi2';
 import type { Book, Category, Tag } from '@/lib/types';
 
 const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), { ssr: false });
@@ -22,10 +22,9 @@ export default function EditBookPage() {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
-  const [synopsis, setSynopsis] = useState('');
   const [content, setContent] = useState('');
   const [rating, setRating] = useState(0);
-  const [category, setCategory] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isbn, setIsbn] = useState('');
   const [publishedYear, setPublishedYear] = useState(2024);
@@ -51,10 +50,13 @@ export default function EditBookPage() {
           setTitle(data.title || '');
           setAuthor(data.author || '');
           setCoverUrl(data.coverUrl || '');
-          setSynopsis(data.synopsis || '');
           setContent(data.content || '');
           setRating(data.rating || 0);
-          setCategory(data.category || '');
+          if (data.categories) {
+            setSelectedCategories(data.categories);
+          } else if (data.category) {
+            setSelectedCategories([data.category]); // Fallback for old data
+          }
           setSelectedTags(data.tags || []);
           setIsbn(data.isbn || '');
           setPublishedYear(data.publishedYear || 2024);
@@ -82,9 +84,17 @@ export default function EditBookPage() {
     updated[index] = value;
     setKeyTakeaways(updated);
   };
-
+  
+  // --- Tag & Category Toggle ---
   const toggleTag = (tagName: string) => {
-    setSelectedTags(prev => prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]);
+    setSelectedTags(prev => 
+      prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]
+    );
+  };
+  const toggleCategory = (catName: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+    );
   };
 
   const handleSave = async () => {
@@ -97,10 +107,12 @@ export default function EditBookPage() {
       await updateDoc(doc(db, 'books', bookId), {
         title: title.trim(),
         author: author.trim(),
-        coverUrl, synopsis, content,
+        coverUrl,
+        content,
         rating: Number(rating),
         tags: selectedTags,
-        category, isPremium,
+        categories: selectedCategories,
+        isPremium,
         estimatedReadTime: Number(estimatedReadTime),
         status, isbn,
         publishedYear: Number(publishedYear),
@@ -153,23 +165,107 @@ export default function EditBookPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Rating</label>
             <input type="number" step="0.1" min="0" max="5" value={rating} onChange={(e) => setRating(parseFloat(e.target.value))} className="form-input" />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-700 mb-1">Kategori</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="form-input">
-              <option value="">Pilih kategori...</option>
-              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">URL Cover</label>
-            <div className="flex gap-3 items-start">
-              <input type="text" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} className="form-input flex-1" />
-              {coverUrl && <img src={coverUrl} alt="Preview" className="w-16 h-22 rounded object-cover border" />}
+            
+            {/* Selected Categories */}
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {selectedCategories.map(cat => (
+                  <span key={cat} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    {cat}
+                    <button type="button" onClick={() => toggleCategory(cat)} className="hover:text-blue-900 focus:outline-none">
+                      <HiOutlineXMark size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Available Categories */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {categories.filter(c => !selectedCategories.includes(c.name)).map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => toggleCategory(cat.name)}
+                  className="px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  {cat.name}
+                </button>
+              ))}
             </div>
+
+            {/* Add manual category */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="form-input flex-1"
+                placeholder="Ketik kategori baru lalu tekan Enter..."
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const input = e.currentTarget;
+                    const value = input.value.trim();
+                    if (!value) return;
+                    if (selectedCategories.includes(value)) { input.value = ''; return; }
+                    
+                    const exists = categories.some(c => c.name.toLowerCase() === value.toLowerCase());
+                    if (!exists) {
+                      try {
+                        const { addDoc, collection } = await import('firebase/firestore');
+                        const { db } = await import('@/lib/firebase');
+                        await addDoc(collection(db, 'categories'), { name: value, createdAt: new Date().toISOString() });
+                        
+                        const { getDocs } = await import('firebase/firestore');
+                        const snap = await getDocs(collection(db, 'categories'));
+                        const refreshed = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+                        setCategories(refreshed);
+                      } catch (err) { console.error('Error saving category:', err); }
+                    }
+                    setSelectedCategories(prev => [...prev, value]);
+                    input.value = '';
+                  }
+                }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-1.5">Pilih kategori di atas atau ketik kategori baru lalu tekan Enter.</p>
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Sinopsis</label>
-            <textarea value={synopsis} onChange={(e) => setSynopsis(e.target.value)} className="form-input" rows={3} />
+            <label className="block text-sm font-medium text-slate-700 mb-1">URL Cover / Upload Gambar</label>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 items-start">
+                <input type="text" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} className="form-input flex-1" placeholder="https://... (Atau upload gambar di bawah)" />
+                {coverUrl && (
+                  <img src={coverUrl} alt="Preview" className="w-16 h-22 rounded object-cover border bg-slate-50" />
+                )}
+              </div>
+              <input type="file" accept="image/*" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const ctx = canvas.getContext('2d');
+                      let width = img.width;
+                      let height = img.height;
+                      if (width > 600) {
+                        height = Math.round(height * 600 / width);
+                        width = 600;
+                      }
+                      canvas.width = width;
+                      canvas.height = height;
+                      ctx?.drawImage(img, 0, 0, width, height);
+                      setCoverUrl(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.src = e.target?.result as string;
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer" />
+            </div>
           </div>
         </div>
       </div>
@@ -200,31 +296,42 @@ export default function EditBookPage() {
           <h2 className="text-lg font-bold text-slate-800">Ringkasan Buku</h2>
           <button
             className={`btn-secondary flex items-center gap-2 ${summarizing ? 'opacity-50 cursor-wait' : ''}`}
-            disabled={summarizing || (!content && !synopsis)}
+            disabled={summarizing || !content}
             onClick={async () => {
               setSummarizing(true);
               try {
-                const sourceText = content || synopsis;
                 const res = await fetch('/api/summarize', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ text: sourceText, title, author }),
+                  body: JSON.stringify({ text: content, title, author }),
                 });
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                if (data.summary) setContent(data.summary);
-                if (data.keyTakeaways?.length) setKeyTakeaways(data.keyTakeaways);
+                if (data.keyTakeaways) setKeyTakeaways(data.keyTakeaways);
+                if (data.tags && data.tags.length > 0) {
+                  // Merge unique tags
+                  const newTags = data.tags.filter((t: string) => !selectedTags.includes(t));
+                  setSelectedTags(prev => [...prev, ...newTags]);
+                }
+                if (data.categories && data.categories.length > 0) {
+                  // Merge unique categories
+                  const newCats = data.categories.filter((c: string) => !selectedCategories.includes(c));
+                  setSelectedCategories(prev => [...prev, ...newCats]);
+                }
+                if (data.estimatedReadTime) setEstimatedReadTime(data.estimatedReadTime);
               } catch (err: any) {
-                alert('Gagal meringkas: ' + (err.message || 'Unknown error'));
+                console.error(err);
+                alert(err.message || 'Gagal menganalisis ringkasan.');
               } finally {
                 setSummarizing(false);
               }
             }}
           >
             <HiOutlineSparkles size={16} />
-            {summarizing ? 'Meringkas...' : 'Ringkas dengan AI'}
+            {summarizing ? 'Menganalisis...' : 'Analisis Ringkasan (AI)'}
           </button>
         </div>
+        <p className="text-sm text-slate-500 mb-4">Tulis ringkasan buku, lalu klik tombol AI di atas untuk mengekstrak Poin Pembelajaran, Tag, dan Estimasi Waktu Baca secara otomatis.</p>
         <RichTextEditor content={content} onChange={setContent} />
       </div>
 
