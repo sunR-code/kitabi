@@ -13,63 +13,6 @@
   }
 }
 
-/* Sidebar */
-.sidebar {
-  background-color: var(--color-sidebar);
-  color: white;
-  width: 260px;
-  min-height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 40;
-  transition: transform 0.3s ease;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    min-height: auto;
-    position: static;
-  }
-}
-
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  margin: 2px 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #94a3b8;
-  transition: all 0.2s;
-}
-
-.sidebar-link:hover {
-  background-color: var(--color-sidebar-hover);
-  color: white;
-}
-
-.sidebar-link.active {
-  background-color: var(--color-sidebar-active);
-  color: white;
-}
-
-/* Main content */
-.main-content {
-  margin-left: 260px;
-  min-height: 100vh;
-  background-color: var(--color-surface);
-}
-
-@media (max-width: 768px) {
-  .main-content {
-    margin-left: 0;
-    min-height: auto;
-  }
-}
 
 /* Card */
 .card {
