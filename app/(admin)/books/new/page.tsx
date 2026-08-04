@@ -89,10 +89,11 @@ export default function NewBookPage() {
     setTitle(book.title);
     setAuthor(book.authors.join(', '));
     setCoverUrl(book.thumbnail);
-    setSynopsis(book.description);
     setIsbn(book.isbn);
     setPublishedYear(parseInt(book.publishedDate?.substring(0, 4)) || 2024);
-    if (book.categories.length > 0) setCategory(book.categories[0]);
+    if (book.categories.length > 0) {
+      setSelectedCategories([...new Set([...selectedCategories, ...book.categories])]);
+    }
     setSearchResults([]);
     setSearchQuery('');
   };

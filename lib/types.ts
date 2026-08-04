@@ -10,6 +10,7 @@ export interface Book {
   rating: number;
   tags: string[];
   categories: string[];
+  category?: string; // Legacy support untuk data lama sebelum multi-kategori
   isPremium: boolean;
   estimatedReadTime: number;
   status: 'draft' | 'published';

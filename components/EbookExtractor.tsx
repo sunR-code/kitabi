@@ -34,7 +34,7 @@ export default function EbookExtractor({ onTextExtracted, onCoverExtracted, onMe
         if (context) {
           canvas.height = viewport.height;
           canvas.width = viewport.width;
-          await firstPage.render({ canvasContext: context, viewport: viewport }).promise;
+          await firstPage.render({ canvasContext: context, viewport: viewport } as any).promise;
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           onCoverExtracted(dataUrl);
         }
