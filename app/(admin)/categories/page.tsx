@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlinePencilSquare } from 'react-icons/hi2';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlinePencilSquare, HiOutlineFolder } from 'react-icons/hi2';
 import type { Category } from '@/lib/types';
+import { ListSkeleton } from '@/components/Skeleton';
+import { toast } from '@/components/Toast';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -19,7 +21,7 @@ export default function CategoriesPage() {
       const snapshot = await getDocs(collection(db, 'categories'));
       setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Gagal memuat kategori:', err);
     } finally {
       setLoading(false);
     }
@@ -34,10 +36,12 @@ export default function CategoriesPage() {
         name: newName.trim(),
         createdAt: new Date().toISOString(),
       });
+      toast(`Kategori "${newName.trim()}" ditambahkan.`, 'success');
       setNewName('');
       fetchCategories();
     } catch (err) {
-      console.error('Error adding category:', err);
+      console.error('Gagal menambah kategori:', err);
+      toast('Gagal menambah kategori.', 'error');
     }
   };
 
@@ -45,9 +49,11 @@ export default function CategoriesPage() {
     if (!confirm(`Hapus kategori "${name}"?`)) return;
     try {
       await deleteDoc(doc(db, 'categories', id));
+      toast(`Kategori "${name}" dihapus.`, 'success');
       fetchCategories();
     } catch (err) {
-      console.error('Error deleting category:', err);
+      console.error('Gagal menghapus kategori:', err);
+      toast('Gagal menghapus kategori.', 'error');
     }
   };
 
@@ -55,10 +61,12 @@ export default function CategoriesPage() {
     if (!editName.trim()) return;
     try {
       await updateDoc(doc(db, 'categories', id), { name: editName.trim() });
+      toast('Kategori diperbarui.', 'success');
       setEditingId(null);
       fetchCategories();
     } catch (err) {
-      console.error('Error updating category:', err);
+      console.error('Gagal memperbarui kategori:', err);
+      toast('Gagal memperbarui kategori.', 'error');
     }
   };
 
@@ -66,7 +74,7 @@ export default function CategoriesPage() {
     <div className="max-w-2xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-800">Kategori</h1>
-        <p className="text-slate-500 mt-1">Kelola kategori buku untuk memudahkan pencarian</p>
+        <p className="text-slate-500 mt-1">Kelola kategori untuk mengelompokkan buku</p>
       </div>
 
       {/* Add New */}
@@ -90,9 +98,12 @@ export default function CategoriesPage() {
       {/* List */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
-          <p className="text-center py-12 text-slate-400">Memuat...</p>
+          <ListSkeleton rows={5} />
         ) : categories.length === 0 ? (
-          <p className="text-center py-12 text-slate-400">Belum ada kategori.</p>
+          <div className="text-center py-12">
+            <HiOutlineFolder size={40} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-400">Belum ada kategori. Tambahkan yang pertama di atas.</p>
+          </div>
         ) : (
           <ul>
             {categories.map((cat) => (
@@ -116,12 +127,14 @@ export default function CategoriesPage() {
                   <button
                     onClick={() => { setEditingId(cat.id!); setEditName(cat.name); }}
                     className="p-2 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors"
+                    title="Edit"
                   >
                     <HiOutlinePencilSquare size={16} />
                   </button>
                   <button
                     onClick={() => handleDelete(cat.id!, cat.name)}
                     className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Hapus"
                   >
                     <HiOutlineTrash size={16} />
                   </button>

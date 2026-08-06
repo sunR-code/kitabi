@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
 export const metadata: Metadata = {
-  title: "Kitab-i Admin",
-  description: "Admin Dashboard untuk mengelola konten buku Kitab-i",
+  title: "Kitabi Admin",
+  description: "Dashboard pengelolaan konten buku Kitabi",
 };
 
 export default function RootLayout({
@@ -13,8 +20,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
-      <body className="antialiased" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         {children}
+        <ToastProvider />
       </body>
     </html>
   );

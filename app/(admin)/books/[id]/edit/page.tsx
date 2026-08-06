@@ -1,428 +1,84 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useRouter, useParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineSparkles, HiOutlineXMark } from 'react-icons/hi2';
-import type { Book, Category, Tag } from '@/lib/types';
-
-const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), { ssr: false });
+import { useParams } from 'next/navigation';
+import BookForm from '@/components/BookForm';
+import type { Book } from '@/lib/types';
 
 export default function EditBookPage() {
-  const router = useRouter();
   const params = useParams();
   const bookId = params.id as string;
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [summarizing, setSummarizing] = useState(false);
-
-  // Form fields
-  const [title, setTitle] = useState('');
-  const [author, setAuthor] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
-  const [content, setContent] = useState('');
-  const [rating, setRating] = useState(0);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [isbn, setIsbn] = useState('');
-  const [publishedYear, setPublishedYear] = useState(2024);
-  const [estimatedReadTime, setEstimatedReadTime] = useState(15);
-  const [isPremium, setIsPremium] = useState(false);
-  const [status, setStatus] = useState<'draft' | 'published'>('draft');
-  const [keyTakeaways, setKeyTakeaways] = useState<string[]>(['']);
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
+  const [initialData, setInitialData] = useState<Book | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchBook = async () => {
       try {
-        const [bookSnap, catSnap, tagSnap] = await Promise.all([
-          getDoc(doc(db, 'books', bookId)),
-          getDocs(collection(db, 'categories')),
-          getDocs(collection(db, 'tags')),
-        ]);
-
+        const bookSnap = await getDoc(doc(db, 'books', bookId));
         if (bookSnap.exists()) {
           const data = bookSnap.data() as Book;
-          setTitle(data.title || '');
-          setAuthor(data.author || '');
-          setCoverUrl(data.coverUrl || '');
-          setContent(data.content || '');
-          setRating(data.rating || 0);
-          if (data.categories) {
-            setSelectedCategories(data.categories);
-          } else if (data.category) {
-            setSelectedCategories([data.category]); // Fallback for old data
+          // Handle legacy single category field
+          if (!data.categories && data.category) {
+            data.categories = [data.category];
           }
-          setSelectedTags(data.tags || []);
-          setIsbn(data.isbn || '');
-          setPublishedYear(data.publishedYear || 2024);
-          setEstimatedReadTime(data.estimatedReadTime || 15);
-          setIsPremium(data.isPremium || false);
-          setStatus(data.status || 'published');
-          setKeyTakeaways(data.keyTakeaways?.length ? data.keyTakeaways : ['']);
+          setInitialData(data);
         }
-
-        setCategories(catSnap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
-        setTags(tagSnap.docs.map(d => ({ id: d.id, ...d.data() } as Tag)));
       } catch (err) {
-        console.error('Error fetching book:', err);
+        console.error('Gagal memuat buku:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchBook();
   }, [bookId]);
 
-  const addTakeaway = () => setKeyTakeaways([...keyTakeaways, '']);
-  const removeTakeaway = (index: number) => setKeyTakeaways(keyTakeaways.filter((_, i) => i !== index));
-  const updateTakeaway = (index: number, value: string) => {
-    const updated = [...keyTakeaways];
-    updated[index] = value;
-    setKeyTakeaways(updated);
-  };
-  
-  // --- Tag & Category Toggle ---
-  const toggleTag = (tagName: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]
-    );
-  };
-  const toggleCategory = (catName: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
-    );
+  const handleSave = async (data: Record<string, unknown>) => {
+    await updateDoc(doc(db, 'books', bookId), {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    });
   };
 
-  const handleSave = async () => {
-    if (!title.trim() || !author.trim()) {
-      alert('Judul dan Penulis wajib diisi!');
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'books', bookId), {
-        title: title.trim(),
-        author: author.trim(),
-        coverUrl,
-        content,
-        rating: Number(rating),
-        tags: selectedTags,
-        categories: selectedCategories,
-        isPremium,
-        estimatedReadTime: Number(estimatedReadTime),
-        status, isbn,
-        publishedYear: Number(publishedYear),
-        keyTakeaways: keyTakeaways.filter(k => k.trim() !== ''),
-        updatedAt: new Date().toISOString(),
-      });
-      router.push('/books');
-    } catch (err) {
-      console.error('Error updating book:', err);
-      alert('Gagal menyimpan perubahan.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-400">Memuat data buku...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (loading) return <p className="text-center py-20 text-slate-400">Memuat data buku...</p>;
+  if (!initialData) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-slate-500">Buku tidak ditemukan.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Edit Buku</h1>
-        <p className="text-slate-500 mt-1">{title}</p>
-      </div>
-
-      {/* Metadata */}
-      <div className="card mb-6">
-        <h2 className="text-lg font-bold text-slate-800 mb-4">Informasi Buku</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Judul *</label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="form-input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Penulis *</label>
-            <input type="text" value={author} onChange={(e) => setAuthor(e.target.value)} className="form-input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">ISBN</label>
-            <input type="text" value={isbn} onChange={(e) => setIsbn(e.target.value)} className="form-input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Tahun Terbit</label>
-            <input type="number" value={publishedYear} onChange={(e) => setPublishedYear(parseInt(e.target.value))} className="form-input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Waktu Baca (menit)</label>
-            <input type="number" value={estimatedReadTime} onChange={(e) => setEstimatedReadTime(parseInt(e.target.value))} className="form-input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Rating</label>
-            <input type="number" step="0.1" min="0" max="5" value={rating} onChange={(e) => setRating(parseFloat(e.target.value))} className="form-input" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Kategori</label>
-            
-            {/* Selected Categories */}
-            {selectedCategories.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {selectedCategories.map(cat => (
-                  <span key={cat} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                    {cat}
-                    <button type="button" onClick={() => toggleCategory(cat)} className="hover:text-blue-900 focus:outline-none">
-                      <HiOutlineXMark size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Available Categories */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {categories.filter(c => !selectedCategories.includes(c.name)).map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => toggleCategory(cat.name)}
-                  className="px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-
-            {/* Add manual category */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="form-input flex-1"
-                placeholder="Ketik kategori baru lalu tekan Enter..."
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const input = e.currentTarget;
-                    const value = input.value.trim();
-                    if (!value) return;
-                    if (selectedCategories.includes(value)) { input.value = ''; return; }
-                    
-                    const exists = categories.some(c => c.name.toLowerCase() === value.toLowerCase());
-                    if (!exists) {
-                      try {
-                        const { addDoc, collection } = await import('firebase/firestore');
-                        const { db } = await import('@/lib/firebase');
-                        await addDoc(collection(db, 'categories'), { name: value, createdAt: new Date().toISOString() });
-                        
-                        const { getDocs } = await import('firebase/firestore');
-                        const snap = await getDocs(collection(db, 'categories'));
-                        const refreshed = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-                        setCategories(refreshed);
-                      } catch (err) { console.error('Error saving category:', err); }
-                    }
-                    setSelectedCategories(prev => [...prev, value]);
-                    input.value = '';
-                  }
-                }}
-              />
-            </div>
-            <p className="text-xs text-slate-400 mt-1.5">Pilih kategori di atas atau ketik kategori baru lalu tekan Enter.</p>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">URL Cover / Upload Gambar</label>
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3 items-start">
-                <input type="text" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} className="form-input flex-1" placeholder="https://... (Atau upload gambar di bawah)" />
-                {coverUrl && (
-                  <img src={coverUrl} alt="Preview" className="w-16 h-22 rounded object-cover border bg-slate-50" />
-                )}
-              </div>
-              <input type="file" accept="image/*" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = (e) => {
-                    const img = new window.Image();
-                    img.onload = () => {
-                      const canvas = document.createElement('canvas');
-                      const ctx = canvas.getContext('2d');
-                      let width = img.width;
-                      let height = img.height;
-                      if (width > 600) {
-                        height = Math.round(height * 600 / width);
-                        width = 600;
-                      }
-                      canvas.width = width;
-                      canvas.height = height;
-                      ctx?.drawImage(img, 0, 0, width, height);
-                      setCoverUrl(canvas.toDataURL('image/jpeg', 0.8));
-                    };
-                    img.src = e.target?.result as string;
-                  };
-                  reader.readAsDataURL(file);
-                }
-              }} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Key Takeaways */}
-      <div className="card mb-6">
-        <h2 className="text-lg font-bold text-slate-800 mb-1">Apa yang Akan Kamu Pelajari</h2>
-        <p className="text-sm text-slate-500 mb-4">Poin-poin ini ditampilkan di halaman detail buku.</p>
-        <div className="space-y-3">
-          {keyTakeaways.map((takeaway, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <span className="text-sm text-teal-600 font-bold w-6">{index + 1}.</span>
-              <input type="text" value={takeaway} onChange={(e) => updateTakeaway(index, e.target.value)} className="form-input flex-1" />
-              {keyTakeaways.length > 1 && (
-                <button onClick={() => removeTakeaway(index)} className="p-2 text-red-400 hover:text-red-600"><HiOutlineTrash size={18} /></button>
-              )}
-            </div>
-          ))}
-        </div>
-        <button onClick={addTakeaway} className="mt-3 flex items-center gap-1 text-sm text-teal-600 font-medium hover:text-teal-700">
-          <HiOutlinePlus size={16} /> Tambah poin
-        </button>
-      </div>
-
-      {/* Ringkasan */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-800">Ringkasan Buku</h2>
-          <button
-            className={`btn-secondary flex items-center gap-2 ${summarizing ? 'opacity-50 cursor-wait' : ''}`}
-            disabled={summarizing || !content}
-            onClick={async () => {
-              setSummarizing(true);
-              try {
-                const res = await fetch('/api/summarize', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ text: content, title, author }),
-                });
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                if (data.keyTakeaways) setKeyTakeaways(data.keyTakeaways);
-                if (data.tags && data.tags.length > 0) {
-                  // Merge unique tags
-                  const newTags = data.tags.filter((t: string) => !selectedTags.includes(t));
-                  setSelectedTags(prev => [...prev, ...newTags]);
-                }
-                if (data.categories && data.categories.length > 0) {
-                  // Merge unique categories
-                  const newCats = data.categories.filter((c: string) => !selectedCategories.includes(c));
-                  setSelectedCategories(prev => [...prev, ...newCats]);
-                }
-                if (data.estimatedReadTime) setEstimatedReadTime(data.estimatedReadTime);
-              } catch (err: any) {
-                console.error(err);
-                alert(err.message || 'Gagal menganalisis ringkasan.');
-              } finally {
-                setSummarizing(false);
-              }
-            }}
-          >
-            <HiOutlineSparkles size={16} />
-            {summarizing ? 'Menganalisis...' : 'Analisis Ringkasan (AI)'}
-          </button>
-        </div>
-        <p className="text-sm text-slate-500 mb-4">Tulis ringkasan buku, lalu klik tombol AI di atas untuk mengekstrak Poin Pembelajaran, Tag, dan Estimasi Waktu Baca secara otomatis.</p>
-        <RichTextEditor content={content} onChange={setContent} />
-      </div>
-
-      {/* Tags & Status */}
-      <div className="card mb-6">
-        <h2 className="text-lg font-bold text-slate-800 mb-4">Tag & Pengaturan</h2>
-
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-700 mb-2">Tag</label>
-
-          {/* Selected tags */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {selectedTags.map(tag => (
-              <span key={tag} className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-700 text-sm px-3 py-1 rounded-full">
-                {tag}
-                <button onClick={() => toggleTag(tag)} className="hover:text-red-500 transition-colors">×</button>
-              </span>
-            ))}
-          </div>
-
-          {/* Existing tags as quick-pick chips */}
-          {tags.filter(t => !selectedTags.includes(t.name)).length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {tags.filter(t => !selectedTags.includes(t.name)).map(tag => (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => toggleTag(tag.name)}
-                  className="px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Inline new tag input */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="form-input flex-1"
-              placeholder="Ketik tag baru lalu tekan Enter..."
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const input = e.currentTarget;
-                  const value = input.value.trim();
-                  if (!value) return;
-                  if (selectedTags.includes(value)) { input.value = ''; return; }
-                  const exists = tags.some(t => t.name.toLowerCase() === value.toLowerCase());
-                  if (!exists) {
-                    try {
-                      const { addDoc, collection, getDocs } = await import('firebase/firestore');
-                      const { db } = await import('@/lib/firebase');
-                      await addDoc(collection(db, 'tags'), { name: value, createdAt: new Date().toISOString() });
-                      const snap = await getDocs(collection(db, 'tags'));
-                      const refreshed = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-                      setTags(refreshed);
-                    } catch (err) { console.error('Error saving tag:', err); }
-                  }
-                  setSelectedTags(prev => [...prev, value]);
-                  input.value = '';
-                }
-              }}
-            />
-          </div>
-          <p className="text-xs text-slate-400 mt-1.5">Pilih tag di atas atau ketik tag baru — otomatis tersimpan ke database.</p>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-slate-700">Status:</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as 'draft' | 'published')} className="form-input w-auto">
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={isPremium} onChange={(e) => setIsPremium(e.target.checked)} className="w-4 h-4 text-teal-600 rounded" />
-            <span className="text-sm font-medium text-slate-700">Konten Premium</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Save Buttons */}
-      <div className="flex items-center gap-3 mb-12">
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Menyimpan...' : '💾 Simpan Perubahan'}
-        </button>
-        <button onClick={() => router.push('/books')} className="btn-secondary">Batal</button>
-      </div>
-    </div>
+    <BookForm
+      mode="edit"
+      initialData={{
+        title: initialData.title || '',
+        author: initialData.author || '',
+        coverUrl: initialData.coverUrl || '',
+        content: initialData.content || '',
+        rating: initialData.rating || 0,
+        categories: initialData.categories || [],
+        tags: initialData.tags || [],
+        isbn: initialData.isbn || '',
+        publishedYear: initialData.publishedYear || new Date().getFullYear(),
+        estimatedReadTime: initialData.estimatedReadTime || 15,
+        isPremium: initialData.isPremium || false,
+        status: initialData.status || 'published',
+        keyTakeaways: initialData.keyTakeaways?.length ? initialData.keyTakeaways : [''],
+      }}
+      onSave={handleSave}
+    />
   );
 }

@@ -3,6 +3,12 @@ import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: NextRequest) {
   try {
+    // Basic auth check
+    const authCookie = req.cookies.get('kitabi_admin_auth');
+    if (!authCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { text, title, author } = await req.json();
 
     if (!text || text.trim().length < 20) {

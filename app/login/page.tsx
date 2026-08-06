@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,46 +18,54 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/login', {
+      // 1. Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const token = await userCredential.user.getIdToken();
+
+      // 2. Set the session cookie for Next.js Middleware
+      const res = await fetch('/api/auth/session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
       });
 
       if (res.ok) {
         router.push('/');
-        router.refresh(); // Force refresh to apply auth state
+        router.refresh();
       } else {
         const data = await res.json();
-        setError(data.error || 'Gagal login. Silakan periksa kembali kredensial Anda.');
+        setError(data.error || 'Gagal membuat sesi login.');
       }
-    } catch (err) {
-      setError('Terjadi kesalahan jaringan.');
+    } catch (err: any) {
       console.error(err);
+      if (err.code === 'auth/invalid-credential') {
+        setError('Email atau password tidak sesuai.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Terlalu banyak percobaan gagal. Coba lagi nanti.');
+      } else {
+        setError('Terjadi kesalahan. Periksa koneksi Anda.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-teal-50/30 to-slate-100 px-4">
+      <div className="w-full max-w-md animate-fade-up">
         {/* Logo */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <Image 
-            src="/logo.png" 
-            alt="Kitab-i Logo" 
-            width={120} 
-            height={40} 
-            className="mb-2 object-contain"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="Kitabi Logo"
+            className="mb-3 object-contain h-14"
           />
-          <p className="text-slate-500 mt-2">Kelola konten buku Anda</p>
+          <p className="text-slate-500 text-sm">Dashboard Pengelolaan Konten</p>
         </div>
 
         {/* Login Card */}
-        <div className="card shadow-lg">
+        <div className="card shadow-xl border-slate-200/60">
           <h2 className="text-lg font-semibold text-slate-800 mb-6 text-center">
             Masuk ke Dashboard
           </h2>
@@ -70,18 +79,19 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Username
+                Email
               </label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-shadow"
-                placeholder="Masukkan username"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="form-input"
+                placeholder="admin@kitabi.com"
                 required
+                autoFocus
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Password
@@ -90,7 +100,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-shadow"
+                className="form-input"
                 placeholder="••••••••"
                 required
               />
@@ -99,14 +109,21 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-lg transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full btn-primary py-3 mt-2 flex items-center justify-center gap-2"
             >
-              {loading ? 'Memproses...' : 'Masuk'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                'Masuk'
+              )}
             </button>
           </form>
 
           <p className="text-center text-xs text-slate-400 mt-6">
-            Sistem Terproteksi. Hanya admin yang berwenang.
+            Akses terbatas untuk administrator.
           </p>
         </div>
       </div>
