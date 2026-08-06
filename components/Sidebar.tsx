@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   HiOutlineHome, 
@@ -55,10 +56,13 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       >
         {/* Logo & Close Button */}
         <div className="px-6 py-6 border-b border-slate-800 flex justify-between items-center">
-          <h1 className="text-xl font-bold tracking-tight">
-            <span className="text-teal-400">Kitab-i</span>{' '}
-            <span className="text-slate-400 text-sm font-normal">Admin</span>
-          </h1>
+          <Image 
+            src="/logo.png" 
+            alt="Kitab-i Logo" 
+            width={100} 
+            height={32} 
+            className="object-contain filter invert opacity-90"
+          />
           <button 
             className="md:hidden text-slate-400 hover:text-white"
             onClick={onClose}

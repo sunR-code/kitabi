@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import { HiMenu } from 'react-icons/hi';
@@ -16,9 +17,13 @@ export default function AdminLayoutWrapper({
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 z-30">
         <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-slate-800">
-            <span className="text-teal-600">Kitab-i</span> Admin
-          </span>
+          <Image 
+            src="/logo.png" 
+            alt="Kitab-i Logo" 
+            width={90} 
+            height={28} 
+            className="object-contain"
+          />
         </div>
         <button
           onClick={() => setIsSidebarOpen(true)}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -43,10 +44,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-800">
-            <span className="text-teal-600">Kitab-i</span> Admin
-          </h1>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <Image 
+            src="/logo.png" 
+            alt="Kitab-i Logo" 
+            width={120} 
+            height={40} 
+            className="mb-2 object-contain"
+          />
           <p className="text-slate-500 mt-2">Kelola konten buku Anda</p>
         </div>
 
