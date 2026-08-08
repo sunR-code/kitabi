@@ -36,6 +36,7 @@ interface BookFormProps {
     publishedYear: number;
     estimatedReadTime: number;
     isPremium: boolean;
+    isEditorChoice?: boolean;
     status: 'draft' | 'published';
     keyTakeaways: string[];
   };
@@ -65,6 +66,7 @@ export default function BookForm({ mode, initialData, onSave }: BookFormProps) {
   const [publishedYear, setPublishedYear] = useState<number | ''>(initialData?.publishedYear || '');
   const [estimatedReadTime, setEstimatedReadTime] = useState(initialData?.estimatedReadTime || 15);
   const [isPremium, setIsPremium] = useState(initialData?.isPremium || false);
+  const [isEditorChoice, setIsEditorChoice] = useState(initialData?.isEditorChoice || false);
   const [status, setStatus] = useState<'draft' | 'published'>(initialData?.status || 'draft');
   const [keyTakeaways, setKeyTakeaways] = useState<string[]>(
     initialData?.keyTakeaways?.length ? initialData.keyTakeaways : ['']
@@ -226,6 +228,22 @@ export default function BookForm({ mode, initialData, onSave }: BookFormProps) {
     }
     setSaving(true);
     try {
+      // Auto-sync missing categories to 'categories' collection in Firestore
+      for (const catName of selectedCategories) {
+        if (!catName || !catName.trim()) continue;
+        const exists = categories.some(c => c.name.toLowerCase() === catName.trim().toLowerCase());
+        if (!exists) {
+          try {
+            await addDoc(collection(db, 'categories'), {
+              name: catName.trim(),
+              createdAt: new Date().toISOString(),
+            });
+          } catch (cErr) {
+            console.error('Gagal menyelaraskan kategori baru:', cErr);
+          }
+        }
+      }
+
       await onSave({
         title: title.trim(),
         author: author.trim(),
@@ -236,6 +254,7 @@ export default function BookForm({ mode, initialData, onSave }: BookFormProps) {
         tags: selectedTags,
         categories: selectedCategories,
         isPremium,
+        isEditorChoice,
         estimatedReadTime: Number(estimatedReadTime),
         status,
         isbn,

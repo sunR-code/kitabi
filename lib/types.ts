@@ -12,6 +12,7 @@ export interface Book {
   categories: string[];
   category?: string; // Legacy support untuk data lama sebelum multi-kategori
   isPremium: boolean;
+  isEditorChoice?: boolean;
   estimatedReadTime: number;
   status: 'draft' | 'published';
   isbn: string;

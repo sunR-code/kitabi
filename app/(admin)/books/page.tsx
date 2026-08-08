@@ -1,10 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import { HiOutlinePlus, HiOutlinePencilSquare, HiOutlineTrash, HiOutlineMagnifyingGlass, HiOutlineBookOpen } from 'react-icons/hi2';
+import {
+  HiOutlinePlus,
+  HiOutlinePencilSquare,
+  HiOutlineTrash,
+  HiOutlineMagnifyingGlass,
+  HiOutlineBookOpen,
+  HiStar,
+  HiOutlineStar,
+} from 'react-icons/hi2';
 import type { Book } from '@/lib/types';
 import { TableSkeleton } from '@/components/Skeleton';
 import { toast } from '@/components/Toast';
@@ -13,13 +21,19 @@ export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft' | 'editor'>('all');
 
   const fetchBooks = async () => {
     setLoading(true);
     try {
       const snapshot = await getDocs(collection(db, 'books'));
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+      // Urutkan dari yang terbaru ke terlama (createdAt DESC)
+      data.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
       setBooks(data);
     } catch (err) {
       console.error('Gagal memuat buku:', err);
@@ -42,12 +56,39 @@ export default function BooksPage() {
     }
   };
 
+  const toggleEditorChoice = async (bookId: string, currentVal: boolean, title: string) => {
+    try {
+      const newVal = !currentVal;
+      await updateDoc(doc(db, 'books', bookId), {
+        isEditorChoice: newVal,
+        updatedAt: new Date().toISOString(),
+      });
+      setBooks(prev => prev.map(b => b.id === bookId ? { ...b, isEditorChoice: newVal } : b));
+      toast(
+        newVal
+          ? `⭐ "${title}" ditandai sebagai Pilihan Editor!`
+          : `"${title}" dihapus dari Pilihan Editor.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Gagal memperbarui status Pilihan Editor:', err);
+      toast('Gagal memperbarui status Pilihan Editor.', 'error');
+    }
+  };
+
   const filteredBooks = books.filter(book => {
     const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       book.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'published' && (book.status === 'published' || !book.status)) ||
-      (filterStatus === 'draft' && book.status === 'draft');
+    
+    let matchesStatus = true;
+    if (filterStatus === 'published') {
+      matchesStatus = book.status === 'published' || !book.status;
+    } else if (filterStatus === 'draft') {
+      matchesStatus = book.status === 'draft';
+    } else if (filterStatus === 'editor') {
+      matchesStatus = !!book.isEditorChoice;
+    }
+
     return matchesSearch && matchesStatus;
   });
 
@@ -78,18 +119,23 @@ export default function BooksPage() {
               className="form-input pl-10"
             />
           </div>
-          <div className="flex gap-2">
-            {(['all', 'published', 'draft'] as const).map(status => (
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { id: 'all', label: 'Semua' },
+              { id: 'editor', label: '⭐ Pilihan Editor' },
+              { id: 'published', label: 'Diterbitkan' },
+              { id: 'draft', label: 'Draf' },
+            ] as const).map(item => (
               <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
+                key={item.id}
+                onClick={() => setFilterStatus(item.id as any)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filterStatus === status
+                  filterStatus === item.id
                     ? 'bg-teal-600 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {status === 'all' ? 'Semua' : status === 'published' ? 'Diterbitkan' : 'Draf'}
+                {item.label}
               </button>
             ))}
           </div>
@@ -99,7 +145,7 @@ export default function BooksPage() {
       {/* Table */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
-          <TableSkeleton rows={6} cols={5} />
+          <TableSkeleton rows={6} cols={6} />
         ) : filteredBooks.length === 0 ? (
           <div className="text-center py-16">
             <HiOutlineBookOpen size={48} className="mx-auto text-slate-300 mb-4" />
@@ -113,6 +159,7 @@ export default function BooksPage() {
               <thead>
                 <tr>
                   <th>Buku</th>
+                  <th>Pilihan Editor</th>
                   <th className="hidden md:table-cell">Kategori</th>
                   <th className="hidden lg:table-cell">Tag</th>
                   <th>Status</th>
@@ -137,6 +184,24 @@ export default function BooksPage() {
                           <p className="text-sm text-slate-500">{book.author}</p>
                         </div>
                       </div>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => toggleEditorChoice(book.id!, !!book.isEditorChoice, book.title)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                          book.isEditorChoice
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300 shadow-sm hover:bg-amber-200'
+                            : 'bg-slate-100 text-slate-500 hover:bg-amber-50 hover:text-amber-700'
+                        }`}
+                        title={book.isEditorChoice ? 'Klik untuk menghapus dari Pilihan Editor' : 'Klik untuk jadikan Pilihan Editor'}
+                      >
+                        {book.isEditorChoice ? (
+                          <HiStar size={14} className="text-amber-500 fill-amber-500" />
+                        ) : (
+                          <HiOutlineStar size={14} />
+                        )}
+                        {book.isEditorChoice ? 'Pilihan Editor' : 'Tandai'}
+                      </button>
                     </td>
                     <td className="hidden md:table-cell">
                       <span className="text-sm text-slate-600">
